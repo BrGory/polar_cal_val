@@ -89,7 +89,7 @@ def fetch_iabp_acronyms(url="https://iabp.apl.uw.edu/Acronyms.html"):
 
     return acronym_data
 
-
+  
 def compute_bearing(
     lat1: float, lon1: float,
     lat2: float, lon2: float 
@@ -115,20 +115,10 @@ def compute_bearing(
                           in meters
     Reference:
         https://pyproj4.github.io/pyproj/stable/api/geod.html#pyproj.Geod.inv
+        
+    Author:
+        Sun Bak-Hospital, sun.bak-hospital@noaa.gov
     """
-    
-    from pyproj import Geod
-
-    # Initialize a geodetic object using the WGS84 ellipsoid
-    geod = Geod(ellps='WGS84')
-
-    # Calculate azimuth and distance using geod.inv method
-    # Note: Arguments order is (lon1, lat1, lon2, lat2)
-    # as required by pyproj.Geod.inv
-    fwd_azimuth, _ , distance = geod.inv(lon1, lat1, lon2, lat2)
-    
-    # Return the calculated forward azimuth, back azimuth, and distance
-    return fwd_azimuth, distance 
 
 
 def download_erddap_buoy_csv(user_args):
