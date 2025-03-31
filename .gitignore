@@ -1,0 +1,18 @@
+# Data files
+**/*.txt
+**/*.csv
+**/*.nc
+**/*.geojson
+**/*.dart
+
+# Jupyter Notebook Checkpoints
+.ipynb_checkpoints/
+**/*.ipynb
+
+# Output files
+output
+templates
+
+
+# Python cache
+__pycache__
