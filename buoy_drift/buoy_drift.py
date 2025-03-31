@@ -2,15 +2,18 @@
 ******************************************************************************
 
  Project:  Polar Cal/Val
- Purpose:  Convert buoy CSV file downloaded from ERDDAP to GeoJSON and .dart files
+ Purpose:  Convert buoy CSV file downloaded from ERDDAP to GeoJSON and 
+           .dart files
            - check for precision
            - check for consistency in number of digits after the decimal point
              This is mathematically irrelevant but technically critical for the
              Mapbox Vector Tile Encoder/Decoder to work properly.
-             e.g., lat: 30.2567   30.2 are inconsistent; change to 30.2567  30.1999
+             e.g., lat: 30.2567   30.2 are inconsistent;
+             change to 30.2567  30.1999
  Author:   Brendon Gory, brendon.gory@noaa.gov
                          brendon.gory@colostate.edu
-           Data Science Application Specialist (Research Associate II) at CSU CIRA
+           Data Science Application Specialist (Research Associate II)
+           at CSU CIRA
  Supervisor: Dr. Prasanjit Dash, prasanjit.dash@noaa.gov
                                prasanjit.dash@colostate.edu
            CSU CIRA Research Scientist III
@@ -39,9 +42,9 @@ Copyright notice
  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  DEALINGS IN THE SOFTWARE.
 
-  Call syntax: generate_buoy_data.py -v for verbose
-               generate_buoy_data.py -h for help
-  polar_calval_buoy_drift.py -v -s 20210101 -p 3
+  Call syntax: buoy_drift.py -v for verbose
+               buoy_drift.py -h for help
+  buoy_drift.py -v -s 20210101 -p 3
 
 """
 
@@ -61,7 +64,9 @@ def read_arguments():
     # Get today's date in the required format
     current_date = datetime.now().strftime("%Y%m%d")
 
-    parser = argparse.ArgumentParser(description='Converts buoy CSV file to GeoJSON and Dart files.')
+    parser = argparse.ArgumentParser(
+        description='Converts buoy CSV file to GeoJSON and Dart files.'
+        )
     
     parser.add_argument(
         '-s', '--start_date',
@@ -176,20 +181,27 @@ def read_arguments():
     user_args['compact'] = args.compact
     user_args['verbose'] = args.verbose
     
-    PARAM_STRING = f"""\
-    CONF PARAMS:
-     start date (-r)[0]:                    {user_args['start_date']}
-     end date (-r)[1]:                      {user_args['end_date']}
-     input csv file folder or file (-i):    {user_args['infile_rootname']}
-     output geojson folder or file (-o):    {user_args['work_path']}
-     precision (-p):                        {user_args['precision']}
-     
-     Boolean args below. If key is provided then 'True', else 'False'.
-     decimal digits consistent (-d) output: {user_args['decimal_digits_consistent']}
-     compact (-c) output:                   {user_args['compact']}
-    """
+    param_string = (
+        "CONF PARAMS:\n"
+        " start date (-r)[0]:                    "
+        f"{user_args['start_date']}\n"
+        " end date (-r)[1]:                      "
+        f"{user_args['end_date']}\n"
+        " input csv file folder or file (-i):    "
+        f"{user_args['infile_rootname']}\n"
+        " output geojson folder or file (-o):    "
+        f"{user_args['work_path']}\n"
+        " precision (-p):                        "
+        f"{user_args['precision']}\n\n"
+        " Boolean args below. If key is provided then 'True', else 'False'.\n"
+        " decimal digits consistent (-d) output:"
+        f"{user_args['decimal_digits_consistent']}\n"
+        " compact (-c) output:                   "
+        f"{user_args['compact']}\n"
+    )
+
     if user_args['verbose'] is True:
-        print(PARAM_STRING)
+        print(param_string)
     
     
     return user_args
@@ -217,7 +229,8 @@ def clean_csv(df, user_args):
     df.drop(['time'], axis=1, inplace=True)
     
     
-    # Column `buoy_id` is inferred as float64. Convert to string then strip '.0'
+    # Column `buoy_id` is inferred as float64.
+    # Convert to string then strip '.0'
     df['buoy_id'] = df['buoy_id'].astype(str).str.replace('.0','')
     
     
@@ -380,19 +393,22 @@ def create_geojson(buoys, user_args):
         """
         mod = getattr(geojson, geometry['type'])
         
-        # Enforce equal number of digits after decimal point for Mapbox Encoder/Decoder compliance
+        coords = geometry['coordinates']
+        adjusted_coords = []
+
+        # Enforce equal number of digits after decimal point
         if user_args['decimal_digits_consistent']:
-            new_geometry = geojson.utils.map_coords(
-                lambda x: (
-                    x + decimal_digit_adjustment if num_of_digits_in_float(x)[1] < user_args['precision'] else x
-                ),
-                mod(geometry['coordinates'], precision=user_args['precision'])
-            )
+            for x in coords:
+                if num_of_digits_in_float(x)[1] < user_args['precision']:
+                    x += decimal_digit_adjustment
+                adjusted_coords.append(x)
         else:
-            new_geometry = geojson.utils.map_coords(
-                lambda x: x,
-                mod(geometry['coordinates'], precision=user_args['precision'])
-            )
+            adjusted_coords = coords
+
+        new_geometry = geojson.utils.map_coords(
+            lambda x: x,  # map_coords still expects a callable
+            mod(adjusted_coords, precision=user_args['precision'])
+        )
         
         properties = {
                 "Name": f"Buoy {buoy_id}: {buoy_type}",
@@ -414,7 +430,9 @@ def create_geojson(buoys, user_args):
             }        
 
         # compliance check
-        compliant_feature_string = geojson_rewind.rewind(geojson.dumps(feature))
+        compliant_feature_string = geojson_rewind.rewind(
+            geojson.dumps(feature)
+            )
         compliant_feature_object = geojson.loads(compliant_feature_string)
         features.append(compliant_feature_object)
     

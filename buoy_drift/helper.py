@@ -40,8 +40,10 @@ def fetch_iabp_acronyms(url="https://iabp.apl.uw.edu/Acronyms.html"):
     """
     Fetch and parse acronyms from the IABP Acronyms webpage.
 
-    :param url: URL of the IABP Acronyms webpage.
-    :return: A dictionary where each key is a category and its value is a dictionary of acronyms.
+    Parameters:
+        url (str): URL of the IABP Acronyms webpage.
+    Returns:
+        acronym_data (dict): Acronym categories and their full name.
     """
     
     import requests
@@ -49,7 +51,10 @@ def fetch_iabp_acronyms(url="https://iabp.apl.uw.edu/Acronyms.html"):
 
     response = requests.get(url)
     if response.status_code != 200:
-        raise Exception(f"Failed to fetch data from {url}. HTTP Status: {response.status_code}")
+        raise Exception(
+            f"Failed to fetch data from {url}. "
+            f"HTTP Status: {response.status_code}"
+            )
 
     soup = BeautifulSoup(response.text, 'html.parser')
     tables = soup.find_all("table")
@@ -86,23 +91,30 @@ def fetch_iabp_acronyms(url="https://iabp.apl.uw.edu/Acronyms.html"):
 
 
 def compute_bearing(
-    lat1: float,  # Starting latitude(s), can be a single float or a list of floats
-    lon1: float,  # Starting longitude(s), can be a single float or a list of floats
-    lat2: float,  # Ending latitude(s), can be a single float or a list of floats
-    lon2: float   # Ending longitude(s), can be a single float or a list of floats
-) -> Tuple[float, float]:       # Returns a tuple: (fwd_azimuth, back_azimuth, distance)
+    lat1: float, lon1: float,
+    lat2: float, lon2: float 
+    ) -> Tuple[float, float]: # Returns a tuple: (fwd_azimuth, distance)
 
     """
-    Calculate the daily drift between two points (start and end) based on their latitude and longitude.
+    Calculate the daily drift between two points (start and end) based on 
+    their latitude and longitude.
 
-    :param lat1: Starting latitude(s)  
-    :param lon1: Starting longitude(s)  
-    :param lat2: Ending latitude(s)  
-    :param lon2: Ending longitude(s)  
-    :return: 
-        - fwd_azimuth (float): Forward azimuth in degrees (0 to 360), measured clockwise from true north
-        - distance (float): Great circle distance between the two points in meters
-    :ref: https://pyproj4.github.io/pyproj/stable/api/geod.html#pyproj.Geod.inv
+    Parameters:
+        lat1 (float): Starting latitude(s), can be a single float
+                      or a list of floats
+        lon1 (float): Starting longitude(s), can be a single float
+                      or a list of floats 
+        lat2 (float): Ending latitude(s), can be a single float
+                      or a list of floats
+        lon2 (float): Ending longitude(s), can be a single float
+                      or a list of floats  
+    Returns: 
+        fwd_azimuth (float): Forward azimuth in degrees (0 to 360),
+                             measured clockwise from true north
+        distance (float): Great circle distance between the two points
+                          in meters
+    Reference:
+        https://pyproj4.github.io/pyproj/stable/api/geod.html#pyproj.Geod.inv
     """
     
     from pyproj import Geod
@@ -111,7 +123,8 @@ def compute_bearing(
     geod = Geod(ellps='WGS84')
 
     # Calculate azimuth and distance using geod.inv method
-    # Note: Arguments order is (lon1, lat1, lon2, lat2) as required by pyproj.Geod.inv
+    # Note: Arguments order is (lon1, lat1, lon2, lat2)
+    # as required by pyproj.Geod.inv
     fwd_azimuth, _ , distance = geod.inv(lon1, lat1, lon2, lat2)
     
     # Return the calculated forward azimuth, back azimuth, and distance
@@ -122,11 +135,7 @@ def download_erddap_buoy_csv(user_args):
     """
     To download CSV file within date range of `start_date` to current date
     Parameters:
-        working_paths (dict): Dictionary of variables that include local directory paths and URLs
-        start_date (str): Start date in 'YYYYMMDD' format.
-        echo (boolean): Displays date ranges prior to each download
-    Returns:
-        local_file_path (str): Path where CSV file has been downloaded
+        user_args (dict): Dictionary containing script arguments
     """
     
     import requests
@@ -134,10 +143,14 @@ def download_erddap_buoy_csv(user_args):
     from datetime import datetime
     from tqdm import tqdm
     
-    # By using headers, it sometimes allows the web site to authenticate the request
+    # By using headers, it sometimes allows the web site to 
+    # authenticate the request
     headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-}
+        'User-Agent': (
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/'
+            '537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        )
+    }
     
     start_date = datetime.strptime(f"{user_args['start_date']}", "%Y%m%d")    
     start_date = start_date.strftime('%Y-%m-%d')
@@ -152,9 +165,16 @@ def download_erddap_buoy_csv(user_args):
         print("Found local copy. Not downloading.")
         return
 
-    url = f"https://polarwatch.noaa.gov/erddap/tabledap/iabpv2_buoys.csv?&time%3E={start_date}T00%3A00%3A00Z&time%3C={end_date}T16%3A33%3A01Z"
+    url = (
+        "https://polarwatch.noaa.gov/erddap/tabledap/iabpv2_buoys.csv?"
+        f"&time%3E={start_date}T00%3A00%3A00Z"
+        f"&time%3C={end_date}T16%3A33%3A01Z"
+    )
 
-    print(f"Downloading CSV file using date range: {start_date} to {end_date}...")
+    print(
+        "Downloading CSV file using date range: "
+        f"{start_date} to {end_date}..."
+        )
     
     try:
         # Send a GET request to download the file with a context manager
@@ -164,27 +184,37 @@ def download_erddap_buoy_csv(user_args):
                 total_size = int(response.headers.get('Content-Length', 0))
 
                 with open(local_file_path, 'wb') as f:
-                    with tqdm(total=total_size, unit='B', unit_scale=True, desc='Downloading') as pbar:
-                        for chunk in response.iter_content(chunk_size=8192):  # Download in chunks
+                    with tqdm(
+                            total=total_size, unit='B',
+                            unit_scale=True, desc='Downloading'
+                            ) as pbar:
+                        # Download in chunks
+                        for chunk in response.iter_content(chunk_size=8192):  
                             f.write(chunk)
-                            pbar.update(len(chunk))  # Update the progress bar with the size of the downloaded chunk
+                            # Update the progress bar with the size
+                            # of the downloaded chunk
+                            pbar.update(len(chunk))  
             else:
-                raise ValueError(f"Unable to download file from {url}. Error code: {response.status_code}")
+                raise ValueError(
+                    f"Unable to download file from {url}. "
+                    f"Error code: {response.status_code}"
+                    )
 
     except requests.RequestException as e:
-        raise ValueError(f"Unable to download file from {url}. Error code: {e}")
+        raise ValueError(
+            f"Unable to download file from {url}. "
+            f"Error code: {e}"
+            )
 
         
 def load_ERDDAP_buoy_CSV(user_args):
     """
-    Load local and/or downloaded CSV file within date range of `start_date` to current date.
-    It is efficient to `check_local_files` if `start_date` is greater than two years ago
+    Load local and/or downloaded CSV file within date range of `start_date` to
+    current date.
     Parameters:
-        working_paths (dict): Dictionary of variables that include local directory paths and URLs
-        start_date (str): Start date in 'YYYYMMDD' format.
-        echo (boolean): Displays date ranges prior to each download
+        user_args (dict): Dictionary containing script arguments
     Returns:
-        df (data frame): Data frame of all buoy observations from ERDDAP
+        df (DataFrame): Data frame of all buoy observations from ERDDAP
     """
 
     import os
@@ -196,7 +226,10 @@ def load_ERDDAP_buoy_CSV(user_args):
     start_date = datetime.strptime(f"{user_args['start_date']}", "%Y%m%d")    
     end_date = datetime.strptime(f"{user_args['end_date']}", "%Y%m%d")
     if start_date.year < 2011:
-        raise ValueError('ERDDAP only has daily buoy observations from year 2011 to current')
+        raise ValueError(
+            'ERDDAP only has daily buoy observations from year 2011'
+            ' to current'
+            )
     if start_date > end_date:
         raise ValueError("`start_date` must not be later than `end_date`.")
 
@@ -230,14 +263,15 @@ def load_ERDDAP_buoy_CSV(user_args):
 
 def extract_daily_positions(df):
     """ 
-    To extract coordinates (lon, lat) of a given buoy at the closest time DOY.000 and save to new file,
-    with daily fields.
-    :param buoy_id: str, IABP buoy ID
-    :return:
-        pandas.core.arrays.datetimes.DatetimeArray, dates;
-        pandas.core.frame.DataFrame, lat_daily
-        pandas.core.frame.DataFrame, lon_daily
-        pandas.core.frame.DataFrame, hour_daily
+    To extract coordinates (lon, lat) of a given buoy at the closest time
+    DOY.000 and save to new file with daily fields.
+    Parameters:
+        df (DataFrame): Data frame with dates, longitudes and latitudes
+    Returns:
+        date_range (DataFrame): Observation dates
+        lat_daily (DataFrame): Observation latitude positions
+        lon_daily (DataFrame): Observation longitude positions
+        hour_daily (DataFrame): Observation hours
     """
     
     import pandas as pd
@@ -283,33 +317,43 @@ def extract_daily_positions(df):
 
 def calculate_drift_daily(lat_daily, lon_daily):
     """
-    To calculate the daily drift (distance between first and last record of a given day).
-    Parameters:
-        buoy_id
-        buoy_date
-        lat_daily
-        lon_daily
-        hour_daily
+    To calculate the daily drift
+    (distance between first and last record of a given day).
+ Parameters:
+        lat_daily (DataFrame): DataFrame with columns 'first' and 'last' 
+                               for daily latitude values.
+        lon_daily (DataFrame): DataFrame with columns 'first' and 'last'
+                               for daily longitude values.
     Returns:
-        x
-        y
-        dx
-        dy
+        x_first (ndarray): Array of first recorded longitudes for each day.
+        y_first (ndarray): Array of first recorded latitudes for each day.
+        dx (ndarray): Daily change in longitude (x-direction) [last - first].
+        dy (ndarray): Daily change in latitude (y-direction) [last - first].
+        fwd_azimuth (ndarray): Array of forward azimuths
+                               (degrees from true north, clockwise).
+        total_distance (ndarray): Great-circle distances between first and 
+                                  last positions per day (in meters).
     """
 
     import numpy as np
     
 
     # Batch transformation for efficiency
-    first_coords = np.column_stack((lon_daily['first'].values, lat_daily['first'].values))
-    last_coords = np.column_stack((lon_daily['last'].values, lat_daily['last'].values))
+    first_coords = np.column_stack(
+        (lon_daily['first'].values, lat_daily['first'].values)
+        )
+    last_coords = np.column_stack(
+        (lon_daily['last'].values, lat_daily['last'].values)
+        )
     x_first, y_first = first_coords[:, 0], first_coords[:, 1]
     x_last, y_last = last_coords[:, 0], last_coords[:, 1]
 
     # Clean up invalid values in coordinates after transformation
     # Handle invalid values in a vectorized way
-    x_first, y_first = np.nan_to_num(x_first, nan=0.0), np.nan_to_num(y_first, nan=0.0)
-    x_last, y_last = np.nan_to_num(x_last, nan=0.0), np.nan_to_num(y_last, nan=0.0)
+    x_first = np.nan_to_num(x_first, nan=0.0)
+    y_first = np.nan_to_num(y_first, nan=0.0)
+    x_last = np.nan_to_num(x_last, nan=0.0)
+    y_last = np.nan_to_num(y_last, nan=0.0)
 
     # Vectorized calculation of differences
     dx, dy = x_last - x_first, y_last - y_first

@@ -31,7 +31,7 @@ This file is responsible for:
 ## Usage
 The program can be executed via the command line with the following syntax:
 ```
-python polar_calval_buoy_drift.py -v -i <Input_CSV_Filename> -o <Output_Directory> -p <Precision>
+python polar_calval_buoy_drift.py -v -s <Start Date> -p <Precision>
 ```
 ### Options:
 - `-s` / `--start_date`: Start date of buoy data download (Format: YYYYMMDD).
