@@ -1,4 +1,3 @@
-
 # Polar Cal/Val Project
 
 ## Overview
@@ -45,20 +44,26 @@ python polar_calval_buoy_drift.py -v -i <Input_CSV_Filename> -o <Output_Director
 - `-v` / `--verbose`: Display additional details.
 
 ## Requirements
+
+### Recommended: Use a Conda Environment
+To avoid dependency conflicts, it's recommended to create and activate a new conda environment before installing the required packages:
+
+```bash
+conda create -n polarcalval python=3.10 -y
+conda activate polarcalval
+pip install -r requirements.txt
+```
+
+### Python Packages
 The code requires the following Python packages:
 - `requests`
-- `BeautifulSoup4`
+- `beautifulsoup4`
 - `pyproj`
 - `pandas`
 - `numpy`
 - `geojson`
-- `geojson_rewind`
+- `geojson-rewind`
 - `tqdm`
-
-Install them via:
-```
-pip install -r requirements.txt
-```
 
 ## License
 This project is licensed under the MIT License. See the license header in the files for more information.
