@@ -5,9 +5,10 @@
  Purpose:    Convert buoy CSV file downloaded from ERDDAP to GeoJSON and 
              .dart files
              - check for precision
-             - check for consistency in number of digits after the decimal point
-               This is mathematically irrelevant but technically critical for the
-               Mapbox Vector Tile Encoder/Decoder to work properly.
+             - check for consistency in number of digits after the decimal
+               point. This is mathematically irrelevant but technically
+               critical for the Mapbox Vector Tile Encoder/Decoder to 
+               work properly.
                e.g., lat: 30.2567   30.2 are inconsistent;
                change to 30.2567  30.1999
  Author:     Brendon Gory, brendon.gory@noaa.gov
@@ -70,7 +71,7 @@ def read_arguments():
     
     parser.add_argument(
         '-s', '--start_date',
-        default='20250101', type=str,
+        default=None, type=str,
         action='store',
         help='Start date to download buoy data. Date must be YYYYMMDD'
         )
@@ -137,6 +138,10 @@ def read_arguments():
     
     
     # Validate dates
+    if args.start_date == None:
+        print("Error: `-s` Start Date is missing.")
+        sys.exit(1)
+        
     start_date = args.start_date
     if args.end_date == None:
         end_date = current_date
@@ -473,6 +478,7 @@ def main():
     # define acronyms found in buoy data
     iabp_acronyms = helper.fetch_iabp_acronyms()
     
+    # Create gejson and dart files for Arctic and Antarctic regions
     for arctic in [True, False]:
         df_clean = subset_csv(df, user_args, arctic)
         
