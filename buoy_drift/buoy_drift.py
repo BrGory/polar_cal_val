@@ -1,27 +1,27 @@
 """
 ******************************************************************************
 
- Project:  Polar Cal/Val
- Purpose:  Convert buoy CSV file downloaded from ERDDAP to GeoJSON and 
-           .dart files
-           - check for precision
-           - check for consistency in number of digits after the decimal point
-             This is mathematically irrelevant but technically critical for the
-             Mapbox Vector Tile Encoder/Decoder to work properly.
-             e.g., lat: 30.2567   30.2 are inconsistent;
-             change to 30.2567  30.1999
- Author:   Brendon Gory, brendon.gory@noaa.gov
-                         brendon.gory@colostate.edu
-           Data Science Application Specialist (Research Associate II)
-           at CSU CIRA
+ Project:    Polar Cal/Val
+ Purpose:    Convert buoy CSV file downloaded from ERDDAP to GeoJSON and 
+             .dart files
+             - check for precision
+             - check for consistency in number of digits after the decimal point
+               This is mathematically irrelevant but technically critical for the
+               Mapbox Vector Tile Encoder/Decoder to work properly.
+               e.g., lat: 30.2567   30.2 are inconsistent;
+               change to 30.2567  30.1999
+ Author:     Brendon Gory, brendon.gory@noaa.gov
+                           brendon.gory@colostate.edu
+             Data Science Application Specialist (Research Associate II)
+             at CSU CIRA
  Supervisor: Dr. Prasanjit Dash, prasanjit.dash@noaa.gov
                                prasanjit.dash@colostate.edu
-           CSU CIRA Research Scientist III
-           (Program Innovation Scientist)
+             CSU CIRA Research Scientist III
+             (Program Innovation Scientist)
 ******************************************************************************
 Copyright notice
          NOAA STAR SOCD and Colorado State Univ CIRA
-         2021, Version 1.0.0
+         2025, Version 1.0.0
          POC: Brendon Gory (brendon.gory@noaa.gov)
 
  Permission is hereby granted, free of charge, to any person obtaining a
@@ -171,15 +171,16 @@ def read_arguments():
     os.makedirs(os.path.join(args.output, 'dart'), exist_ok=True)
     
     
-    user_args = {}
-    user_args['start_date'] = start_date
-    user_args['end_date'] = end_date
-    user_args['infile_rootname'] = args.infile_rootname
-    user_args['work_path'] = os.path.normpath(os.path.join(args.output))
-    user_args['precision'] = args.precision
-    user_args['decimal_digits_consistent'] = args.decimal_digits_consistent
-    user_args['compact'] = args.compact
-    user_args['verbose'] = args.verbose
+    user_args = {
+        'start_date': start_date,
+        'end_date': end_date,
+        'infile_rootname': args.infile_rootname,
+        'work_path': os.path.normpath(os.path.join(args.output)),
+        'precision': args.precision,
+        'decimal_digits_consistent': args.decimal_digits_consistent,
+        'compact': args.compact,
+        'verbose': args.verbose
+    }
     
     param_string = (
         "CONF PARAMS:\n"
@@ -207,16 +208,19 @@ def read_arguments():
     return user_args
 
 
-def clean_csv(df, user_args):
+def subset_csv(df, user_args, arctic=True):
     import pandas as pd
     
     # Ignore first row (not the header row) in the ERDDAP csv file
     df = df.iloc[1:].reset_index(drop=True)
     
     
-    # Get only buoys in the Arctic region. For simplicity, latitude > 0
-    df = df[df['latitude'].astype(float) > 0]
-    
+    if arctic:
+        # Get only buoys in the Arctic region. For simplicity, latitude > 0
+        df = df[df['latitude'].astype(float) > 0]
+    else:
+        # Get only buoys in the Antarctic region. For simplicity, latitude < 0
+        df = df[df['latitude'].astype(float) < 0]
     
     # Add formatted date column as YYYY-MM-DD
     df['time'] = pd.to_datetime(df['time'])
@@ -289,10 +293,9 @@ def build_dart(df, user_args, iabp_acronyms):
             buoy_type_id, 'unknown buoy type'
             )
         
-        buoy_data['file_type'] = 'dart'
         buoy_data['file_name'] = f'{buoy_id}.dart'
         buoy_data['station_info'] = (
-            'https://iabp.apl.washington.edu/IABP_Table.html'
+            f'https://iabp.apl.uw.edu/raw_plots.php?bid={buoy_id}#top'
             )
         
         buoy_date, buoy_lat, buoy_lon, buoy_duration = (
@@ -334,9 +337,10 @@ def build_dart(df, user_args, iabp_acronyms):
                 month = f"{row['date'].month:02}"
                 day = f"{row['date'].day:02}"
                 distance = f"{row['total_distance_km']}".rjust(8)
-                
+                azimuth = f"{row['fwd_azimuth']}",
                 data_line = (
-                    f"{year}\t{month}\t{day}\t00\t00\t00\t1\t{distance}\n"
+                    f"{year}\t{month}\t{day}\t00\t00\t00\t1"
+                    f"\t{distance}\t{azimuth}\n"
                     )
                 file.write(data_line)
                 
@@ -353,7 +357,7 @@ def num_of_digits_in_float(n):
     return [len(str(a)) - 1, len(str(a).split('.')[1])]
 
 
-def create_geojson(buoys, user_args):
+def create_geojson(buoys, user_args, arctic):
     import os
     import geojson
     import geojson_rewind
@@ -373,7 +377,6 @@ def create_geojson(buoys, user_args):
         program = buoy['program']
         latitude = buoy['latitude']
         longitude = buoy['longitude']
-        file_type = buoy['file_type']
         file_name = buoy['file_name']
         station_info = buoy['station_info']
         
@@ -415,10 +418,8 @@ def create_geojson(buoys, user_args):
                 "ID": buoy_id,
                 "Owner": owner,
                 "Program": program,
-                "Type": file_type,
                 "Latitude": str(latitude),
                 "Longitude": str(longitude),
-                "Region": "Arctic",
                 "Timeseries": file_name,
                 "StationInfo": station_info        
             }
@@ -437,8 +438,13 @@ def create_geojson(buoys, user_args):
         features.append(compliant_feature_object)
     
     # Define the output path for the GeoJSON file
+    if arctic:
+        geojson_filename = 'arctic_buoy_dart_active.geojson'
+    else:
+        geojson_filename = 'antarctic_buoy_dart_active.geojson'
+        
     output_geojson_path = os.path.join(
-        user_args['work_path'], 'arctic_buoy_dart_active.geojson'
+        user_args['work_path'], geojson_filename
         )
     
     # Create geojson header    
@@ -467,11 +473,12 @@ def main():
     # define acronyms found in buoy data
     iabp_acronyms = helper.fetch_iabp_acronyms()
     
-    df_clean = clean_csv(df, user_args)
-    
-    buoys = build_dart(df_clean, user_args,iabp_acronyms)
-    
-    create_geojson(buoys, user_args)
+    for arctic in [True, False]:
+        df_clean = subset_csv(df, user_args, arctic)
+        
+        buoys = build_dart(df_clean, user_args, iabp_acronyms)
+        
+        create_geojson(buoys, user_args, arctic)
     
     print('done')
 

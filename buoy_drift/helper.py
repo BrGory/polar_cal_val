@@ -1,19 +1,20 @@
 """
 ******************************************************************************
 
- Project:  Polar Cal/Val
- Purpose:  Helper function to generate_buoy_data
- Author:   Brendon Gory, brendon.gory@noaa.gov
-                         brendon.gory@colostate.edu
-           Data Science Application Specialist (Research Associate II) at CSU CIRA
+ Project:    Polar Cal/Val
+ Purpose:    Helper function to buoy_drift
+ Author:     Brendon Gory, brendon.gory@noaa.gov
+                           brendon.gory@colostate.edu
+             Data Science Application Specialist (Research Associate II)
+             at CSU CIRA
  Supervisor: Dr. Prasanjit Dash, prasanjit.dash@noaa.gov
                                prasanjit.dash@colostate.edu
-           CSU CIRA Research Scientist III
-           (Program Innovation Scientist)
+             CSU CIRA Research Scientist III
+             (Program Innovation Scientist)
 ******************************************************************************
 Copyright notice
          NOAA STAR SOCD and Colorado State Univ CIRA
-         2021, Version 1.0.0
+         2025, Version 1.0.0
          POC: Brendon Gory (brendon.gory@noaa.gov)
 
  Permission is hereby granted, free of charge, to any person obtaining a
@@ -120,6 +121,18 @@ def compute_bearing(
         Sun Bak-Hospital, sun.bak-hospital@noaa.gov
     """
 
+    from pyproj import Geod 
+
+    # Initialize a geodetic object using the WGS84 ellipsoid
+    geod = Geod(ellps='WGS84')
+
+    # Calculate azimuth and distance using geod.inv method
+    # Note: Arguments order is (lon1, lat1, lon2, lat2) 
+    # as required by pyproj.Geod.inv
+    fwd_azimuth, _ , distance = geod.inv(lon1, lat1, lon2, lat2)
+    
+    # Return the calculated forward azimuth, back azimuth, and distance
+    return fwd_azimuth, distance 
 
 def download_erddap_buoy_csv(user_args):
     """
