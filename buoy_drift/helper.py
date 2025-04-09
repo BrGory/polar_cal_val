@@ -134,6 +134,7 @@ def compute_bearing(
     # Return the calculated forward azimuth, back azimuth, and distance
     return fwd_azimuth, distance 
 
+
 def download_erddap_buoy_csv(user_args):
     """
     To download CSV file within date range of `start_date` to current date
@@ -254,8 +255,7 @@ def load_ERDDAP_buoy_CSV(user_args):
     df = pd.read_csv(
         local_file_path, low_memory=False, 
         usecols=[
-            "time", "latitude", "longitude", "surface_temp", "air_temp",
-            "has_surface_temp", "has_air_temp",
+            "time", "latitude", "longitude", "surface_temp", "air_temp", "bp",
             "buoy_id", "buoy_type", "buoy_owner", "logistics",
             "hour", "day_of_year"
         ]
@@ -370,3 +370,24 @@ def calculate_drift_daily(lat_daily, lon_daily):
     )
     
     return x_first, y_first, dx, dy, fwd_azimuth, total_distance
+
+
+def get_avg(df, col):
+    import numpy as np
+    
+    unique_dates = df['formatted_date'].unique()
+    
+    # Drop rows where col is NaN
+    df_clean = df.dropna(subset=[col])
+    
+    if df_clean.empty:
+        # All values in col are NaN — return NaNs for each unique date
+        return np.nan * len(unique_dates)
+    
+    # Otherwise compute the mean per day
+    daily_avg = df_clean.groupby('formatted_date')[col].mean()
+    
+    # Reindex to ensure all original dates are preserved, even if missing from df_clean
+    daily_avg = daily_avg.reindex(unique_dates)
+    
+    return daily_avg.values

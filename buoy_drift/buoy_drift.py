@@ -49,12 +49,6 @@ Copyright notice
 
 """
 
-# import EDA_helper as util
-# from datetime import datetime, timedelta
-# from dateutil.relativedelta import relativedelta
-# import numpy as np
-
-
 
 def read_arguments():
     import argparse
@@ -216,6 +210,8 @@ def read_arguments():
 def subset_csv(df, user_args, arctic=True):
     import pandas as pd
     
+    precision = user_args['precision']
+    
     # Ignore first row (not the header row) in the ERDDAP csv file
     df = df.iloc[1:].reset_index(drop=True)
     
@@ -248,22 +244,19 @@ def subset_csv(df, user_args, arctic=True):
     
     
     # Set coordinates to float
-    df['longitude'] = round(
-        df['longitude'].astype(float), user_args['precision']
-        )
-    df['latitude'] = round(
-        df['latitude'].astype(float), user_args['precision']
-        )
+    df['longitude'] = round(df['longitude'].astype(float), precision)
+    df['latitude'] = round(df['latitude'].astype(float), precision)
     
     
-    # Set temperatures to float
+    # Set temperatures and pressure to float
     df['air_temp'] = df['air_temp'].astype(float)
     df['surface_temp'] = df['surface_temp'].astype(float)
+    df['bp'] = df['bp'].astype(float)
     
     return df
 
 
-def build_dart(df, user_args, iabp_acronyms):
+def build_dart(df, user_args, iabp_acronyms, arctic):
     import helper
     import os
     import pandas as pd
@@ -272,13 +265,22 @@ def build_dart(df, user_args, iabp_acronyms):
     
     buoys = {}
     buoy_ids = df['buoy_id'].unique()
+    precision = user_args['precision']
     
-    for buoy_id in tqdm(buoy_ids, desc='Creating dart for each buoy'):
+    if arctic:
+        region = 'Arctic'
+    else:
+        region= 'Antarctic'
+        
+    for buoy_id in tqdm(
+            buoy_ids, desc=f'Creating dart for each {region} buoy'):
         buoy_data = {}
         
         # Create data frame for one buoy
         df_buoy = df[df['buoy_id'] == buoy_id]
+        
         buoy_data['buoy_id'] = buoy_id
+        
         
         # Get buoy owner        
         owner_id = df_buoy['buoy_owner'].iloc[0]
@@ -311,43 +313,72 @@ def build_dart(df, user_args, iabp_acronyms):
             helper.calculate_drift_daily(buoy_lat, buoy_lon)
             )
         
-        distance = np.round(distance / 1000, user_args['precision'])
+        distance = np.round(distance / 1000, precision)
+        bearing = np.round(fwd_azimuth, precision)
         
-        df_daily_drift = pd.DataFrame({
+        # print(buoy_id)
+        avg_air_temp = np.round(
+            helper.get_avg(df_buoy, 'air_temp'), precision
+            )
+        
+        avg_surface_temp = np.round(
+            helper.get_avg(df_buoy, 'surface_temp'), precision
+            )
+        
+        avg_bp = np.round(
+            helper.get_avg(df_buoy, 'bp'), precision
+            )
+        
+        
+        df_daily_data = pd.DataFrame({
             'date': buoy_date,
             'buoy_id': buoy_id,
             'lon': x, 'lat': y, 
             'dx': dx, 'dy': dy,
-            'fwd_azimuth': fwd_azimuth,
-            'total_distance_km': distance
+            'bearing': bearing,
+            'total_distance_km': distance,
+            'avg_air_temp': avg_air_temp,
+            'avg_surface_temp': avg_surface_temp,
+            'avg_bp': avg_bp
         })
         # Ensure there are no missing values
-        df_daily_drift.replace([np.inf, -np.inf], 0, inplace=True) 
+        df_daily_data.replace([np.inf, -np.inf], 0, inplace=True) 
         
-        buoy_data['latitude'] = df_daily_drift['lat'].iloc[-1]
-        buoy_data['longitude'] = df_daily_drift['lon'].iloc[-1]
+        
+        buoy_data['latitude'] = df_daily_data['lat'].iloc[-1]
+        buoy_data['longitude'] = df_daily_data['lon'].iloc[-1]
         
         output_file_path = os.path.join(
             user_args['work_path'], 'dart', buoy_data['file_name']
             )
         header = (
-            "#YY\tMM\tDD\thh\tmm\tss\tT\t" + "Distance".rjust(8) + "\n"
-            "#yr\tmo\tdy\thr\tmn\ts\t-\t" + "km".rjust(8) + "\n"
+            f"#YYYY\tMM\tDD\thh\tmm\tss\tT\t"
+            f"{'Distance'.rjust(8)}\t{'Bearing'.rjust(8)}\t"
+            f"{'Air Temp'.rjust(8)}\t{'Sfc Temp'.rjust(8)}\t"
+            f"{'BP'.rjust(8)}\n"
+            f"#year\tmo\tdy\thr\tmn\ts\t-\t"
+            f"{'km'.rjust(8)}\t{'deg'.rjust(8)}\t"
+            f"{'C'.rjust(8)}\t{'C'.rjust(8)}\t{'mb'.rjust(8)}\t\n"
         )
         with open(output_file_path, 'w') as file:
             file.write(header)
 
-            for idx, row in df_daily_drift.iterrows():
-                year = str(row['date'].year)[-2:]
+            for idx, row in df_daily_data.iterrows():
+                year = str(row['date'].year)
                 month = f"{row['date'].month:02}"
                 day = f"{row['date'].day:02}"
                 distance = f"{row['total_distance_km']}".rjust(8)
-                azimuth = f"{row['fwd_azimuth']}",
+                bearing = f"{row['bearing']}".rjust(8)
+                avg_air_temp = f"{row['avg_air_temp']}".rjust(8)
+                avg_surface_temp = f"{row['avg_surface_temp']}".rjust(8)
+                avg_bp = f"{row['avg_bp']}".rjust(8)
                 data_line = (
-                    f"{year}\t{month}\t{day}\t00\t00\t00\t1"
-                    f"\t{distance}\t{azimuth}\n"
+                    f"{year}\t{month}\t{day}\t00\t00\t00\t1\t"
+                    f"{distance}\t{bearing}\t{avg_air_temp}\t"
+                    f"{avg_surface_temp}\t{avg_bp}\n"
                     )
                 file.write(data_line)
+                
                 
                 
         buoys[buoy_id] = buoy_data
@@ -482,7 +513,7 @@ def main():
     for arctic in [True, False]:
         df_clean = subset_csv(df, user_args, arctic)
         
-        buoys = build_dart(df_clean, user_args, iabp_acronyms)
+        buoys = build_dart(df_clean, user_args, iabp_acronyms, arctic)
         
         create_geojson(buoys, user_args, arctic)
     
