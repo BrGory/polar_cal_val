@@ -285,19 +285,19 @@ def build_dart(df, user_args, iabp_acronyms, arctic):
         # Get buoy owner        
         owner_id = df_buoy['buoy_owner'].iloc[0]
         buoy_data['owner'] = iabp_acronyms['Buoy Owner Acronyms'].get(
-            owner_id, 'unknown owner'
+            owner_id, owner_id
             )
         
         # Get buoy program
         program_id = df_buoy['logistics'].iloc[0]
         buoy_data['program'] = iabp_acronyms['Buoy Logistics Acronyms'].get(
-            program_id, 'unknown program'
+            program_id, program_id
             )
         
         # Get buoy type
         buoy_type_id = df_buoy['buoy_type'].iloc[0]    
         buoy_data['buoy_type'] = iabp_acronyms['Buoy Type Acronyms'].get(
-            buoy_type_id, 'unknown buoy type'
+            buoy_type_id, buoy_type_id
             )
         
         buoy_data['file_name'] = f'{buoy_id}.dart'
