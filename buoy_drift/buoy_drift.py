@@ -302,7 +302,7 @@ def build_dart(df, user_args, iabp_acronyms, arctic):
         
         buoy_data['file_name'] = f'{buoy_id}.dart'
         buoy_data['station_info'] = (
-            f'https://iabp.apl.uw.edu/raw_plots.php?bid={buoy_id}#top'
+            f'https://iabp.apl.uw.edu/raw_plots.php?bid={buoy_id}'
             )
         
         buoy_date, buoy_lat, buoy_lon, buoy_duration = (
@@ -352,13 +352,9 @@ def build_dart(df, user_args, iabp_acronyms, arctic):
             user_args['work_path'], 'dart', buoy_data['file_name']
             )
         header = (
-            f"#YYYY\tMM\tDD\thh\tmm\tss\tT\t"
-            f"{'Distance'.rjust(8)}\t{'Bearing'.rjust(8)}\t"
-            f"{'Air Temp'.rjust(8)}\t{'Sfc Temp'.rjust(8)}\t"
-            f"{'BP'.rjust(8)}\n"
-            f"#year\tmo\tdy\thr\tmn\ts\t-\t"
-            f"{'km'.rjust(8)}\t{'deg'.rjust(8)}\t"
-            f"{'C'.rjust(8)}\t{'C'.rjust(8)}\t{'mb'.rjust(8)}\t\n"
+            "#YYYY\tMM\tDD\thh\tmm\tss\tDistance\tBearing\t"
+            "Air Temperature\tSurface Temperature\tAtmospheric Pressure\n"
+            "#year\tmo\tdy\thr\tmn\ts\tkm\tdeg\tC\tC\tmb\t\n"
         )
         with open(output_file_path, 'w') as file:
             file.write(header)
@@ -367,13 +363,13 @@ def build_dart(df, user_args, iabp_acronyms, arctic):
                 year = str(row['date'].year)
                 month = f"{row['date'].month:02}"
                 day = f"{row['date'].day:02}"
-                distance = f"{row['total_distance_km']}".rjust(8)
-                bearing = f"{row['bearing']}".rjust(8)
-                avg_air_temp = f"{row['avg_air_temp']}".rjust(8)
-                avg_surface_temp = f"{row['avg_surface_temp']}".rjust(8)
-                avg_bp = f"{row['avg_bp']}".rjust(8)
+                distance = f"{row['total_distance_km']}"
+                bearing = f"{row['bearing']}"
+                avg_air_temp = f"{row['avg_air_temp']}"
+                avg_surface_temp = f"{row['avg_surface_temp']}"
+                avg_bp = f"{row['avg_bp']}"
                 data_line = (
-                    f"{year}\t{month}\t{day}\t00\t00\t00\t1\t"
+                    f"{year}\t{month}\t{day}\t00\t00\t00\t"
                     f"{distance}\t{bearing}\t{avg_air_temp}\t"
                     f"{avg_surface_temp}\t{avg_bp}\n"
                     )
@@ -450,8 +446,8 @@ def create_geojson(buoys, user_args, arctic):
         )
         
         properties = {
-                "Name": f"Buoy {buoy_id}: {buoy_type}",
                 "ID": buoy_id,
+                "Type": buoy_type,
                 "Owner": owner,
                 "Program": program,
                 "Latitude": str(latitude),
