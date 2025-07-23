@@ -51,6 +51,57 @@ Copyright notice
 
 
 def read_arguments():
+    """
+    Parse and validate command-line arguments for converting buoy CSV files 
+    to GeoJSON and Dart formats.
+    
+    This function sets up an `argparse.ArgumentParser` to collect the
+    following arguments:
+    
+    - `--start_date` (`-s`): Required start date for buoy data download
+      (format: YYYYMMDD).
+    - `--end_date` (`-e`): Optional end date for data download
+      (default: today).
+    - `--infile_rootname` (`-i`): Optional name prefix for the input CSV file 
+      (default: "ERDDAP_IABP").
+    - `--output` (`-o`): Directory path to save downloaded CSV and output files 
+      (default: predefined path on local system).
+    - `--precision` (`-p`): Number of digits after the decimal point
+      for coordinates (default: 3).
+    - `--decimal_digits_consistent` (`-d`): Flag to enforce fixed
+      decimal digits in coordinate formatting for compatibility with MapBox
+      (default: False).
+    - `--compact` (`-c`): Flag to make GeoJSON output compact, with 
+      no whitespace or newlines (default: False).
+    - `--verbose` (`-v`): Flag to print parsed configuration parameters
+      (default: False).
+    
+    Returns:
+        dict: A dictionary of user-specified or default argument
+              values with the following keys:
+            - 'start_date' (str)
+            - 'end_date' (str)
+            - 'infile_rootname' (str)
+            - 'work_path' (str)
+            - 'precision' (int)
+            - 'decimal_digits_consistent' (bool)
+            - 'compact' (bool)
+            - 'verbose' (bool)
+    
+    Exits:
+        Exits the program with status code 1 if:
+            - `--start_date` is not provided.
+            - Either `--start_date` or `--end_date` is not in the
+              format YYYYMMDD.
+    
+    Side Effects:
+        - Creates output directories if they don't already exist.
+        - Optionally prints parsed parameters if `--verbose` is enabled.
+    
+    Example:
+        $ python script.py -s 20250101 -e 20250115 -v
+    """
+    
     import argparse
     import sys
     import os
@@ -208,6 +259,41 @@ def read_arguments():
 
 
 def subset_csv(df, user_args, arctic=True):
+    """
+    Clean and subset buoy data from a CSV DataFrame based 
+    on hemisphere and formatting rules.
+    
+    This function performs the following operations:
+    - Filters rows by hemisphere (Arctic or Antarctic) using latitude.
+    - Converts and formats date and time columns.
+    - Cleans `buoy_id` and `hour` columns by removing trailing decimals.
+    - Rounds coordinate columns (`latitude`, `longitude`) to the 
+      specified precision.
+    - Ensures temperature and pressure fields are properly cast to float.
+    
+    Args:
+        df (pandas.DataFrame): The raw DataFrame read from a buoy CSV file.
+        user_args (dict): Dictionary of configuration parameters. Expects:
+            - 'precision' (int): Number of decimal places to round coordinates.
+        arctic (bool, optional): If True, subsets data for the Arctic region 
+            (latitude > 0). If False, subsets for the Antarctic (latitude < 0).
+            Defaults to True.
+    
+    Returns:
+        pandas.DataFrame: Cleaned and filtered DataFrame ready for
+        further processing or export.
+    
+    Notes:
+        - Assumes the first row of the CSV (after the header) is metadata
+          and skips it.
+        - Adds two columns:
+            - `formatted_date`: Date portion of the timestamp (YYYY-MM-DD).
+            - `formatted_time`: Time portion (HH:MM:SS).
+        - Drops the original `time` column.
+        - Converts key columns to appropriate types for numeric and
+          geographic data integrity.
+    """
+    
     import pandas as pd
     
     precision = user_args['precision']
@@ -257,6 +343,81 @@ def subset_csv(df, user_args, arctic=True):
 
 
 def build_dart(df, user_args, iabp_acronyms, arctic):
+    """
+    Generate `.dart` metadata files for individual buoys based on daily movement 
+    and environmental data.
+
+    For each buoy in the provided DataFrame, this function:
+    - Extracts daily position and calculates drift statistics 
+      (e.g., dx, dy, distance, bearing).
+    - Computes average environmental parameters
+      (air temperature, surface temperature, pressure).
+    - Builds a structured `.dart` file containing this information
+      in tabular format.
+    - Writes each `.dart` file to the specified output directory.
+    - Collects metadata (e.g., type, owner, program, final location)
+      for return.
+
+    Args:
+        df (pandas.DataFrame): Cleaned and filtered buoy data with 
+            required columns,including `buoy_id`, `latitude`, `longitude`,
+            `air_temp`, `surface_temp`, `bp`, `time`, `buoy_owner`,
+            `buoy_type`, and `logistics`.
+        user_args (dict): Dictionary of configuration parameters, expects:
+            - 'precision' (int): Number of decimal places to round 
+              numeric values.
+            - 'work_path' (str): Output path where `.dart` files will be saved.
+        iabp_acronyms (dict): Dictionary with acronym lookups for
+            buoy metadata, containing:
+            - 'Buoy Owner Acronyms'
+            - 'Buoy Logistics Acronyms'
+            - 'Buoy Type Acronyms'
+        arctic (bool): Indicates whether the buoys are in the Arctic (`True`)
+            or Antarctic (`False`), used for log messages only.
+
+    Returns:
+        dict: Dictionary containing metadata for each buoy keyed by `buoy_id`.
+            Each value includes:
+            - 'buoy_id' (str)
+            - 'owner' (str)
+            - 'program' (str)
+            - 'buoy_type' (str)
+            - 'file_name' (str)
+            - 'station_info' (str)
+            - 'latitude' (float): Final daily latitude
+            - 'longitude' (float): Final daily longitude
+
+    Side Effects:
+        - Writes `.dart` files to the path: `<user_args['work_path']>/dart/`.
+        - Prints progress using `tqdm`.
+
+    Requires:
+        - `helper.extract_daily_positions(df)`
+        - `helper.calculate_drift_daily(lat, lon)`
+        - `helper.get_avg(df, column_name)`
+
+    Raises:
+        - May raise `KeyError` or `IndexError` if expected columns are missing 
+          or improperly formatted.
+
+    Example:
+        >>> build_dart(df, user_args, acronyms, arctic=True)
+        {
+            '300234063339000': {
+                'buoy_id': '300234063339000',
+                'owner': 'NOAA',
+                'program': 'IABP',
+                'buoy_type': 'SVP',
+                'file_name': '300234063339000.dart',
+                'station_info': 
+                'https://iabp.apl.uw.edu/raw_plots.php?bid=300234063339000',
+                'latitude': 84.627,
+                'longitude': -133.252
+            },
+            ...
+        }
+    """
+    
     import helper
     import os
     import pandas as pd
@@ -386,14 +547,89 @@ def build_dart(df, user_args, iabp_acronyms, arctic):
     return buoys
 
 
-# Required utility function
 def num_of_digits_in_float(n):
+    """
+    Compute the number of digits in a float.
+
+    This function returns two values:
+    1. The total number of characters in the float
+       (excluding the decimal point), 
+       including leading digits, trailing digits, and the decimal part.
+    2. The number of digits after the decimal point (i.e., precision).
+
+    Args:
+        n (float or str): A floating-point number or numeric string.
+
+    Returns:
+        list: A two-element list:
+            - [0]: Total number of characters in the number string minus 1
+              (exclude the decimal point).
+            - [1]: Number of digits after the decimal point.
+
+    Example:
+        >>> num_of_digits_in_float(12.345)
+        [5, 3]  # '12.345' → 6 chars, minus 1 = 5; 3 digits after decimal
+    """    
+    
     import decimal
     a = decimal.Decimal(str(n))
     return [len(str(a)) - 1, len(str(a).split('.')[1])]
 
 
 def create_geojson(buoys, user_args, arctic):
+    """
+    Generate a GeoJSON file representing the most recent position of
+    active buoys.
+
+    For each buoy in the input dictionary, this function:
+    - Extracts metadata (e.g., type, owner, program, coordinates).
+    - Constructs a GeoJSON Point feature for the buoy location.
+    - Ensures coordinate precision consistency if specified.
+    - Assembles all features into a GeoJSON FeatureCollection.
+    - Writes the result to a `.geojson` file in the output directory.
+
+    Args:
+        buoys (dict): Dictionary of buoy metadata, where each key is a
+            `buoy_id` and each value is a dict with:
+            - 'buoy_type' (str)
+            - 'owner' (str)
+            - 'program' (str)
+            - 'latitude' (float)
+            - 'longitude' (float)
+            - 'file_name' (str): Name of associated `.dart` file
+            - 'station_info' (str): URL to buoy metadata
+        user_args (dict): Dictionary of user-defined parameters, expects:
+            - 'precision' (int): Number of decimal digits for coordinates.
+            - 'decimal_digits_consistent' (bool): Enforce equal-length decimal
+               precision if True.
+            - 'compact' (bool): If True, minimize file whitespace.
+            - 'work_path' (str): Directory where the output file is saved.
+        arctic (bool): If True, the file is named for Arctic buoys; otherwise,
+            for Antarctic buoys.
+
+    Returns:
+        None
+
+    Side Effects:
+        - Writes a GeoJSON file to
+         `<work_path>/arctic_buoy_dart_active.geojson` or 
+          `<work_path>/antarctic_buoy_dart_active.geojson` depending on the
+          `arctic` flag.
+        - Applies GeoJSON winding order compliance using `geojson_rewind`.
+
+    Notes:
+        - Coordinate precision is enforced using `geojson.utils.map_coords`.
+        - The decimal adjustment logic ensures consistent formatting for
+          encoders like MapBox when enabled.
+        - This function depends on `num_of_digits_in_float`,
+          `geojson`, and `geojson_rewind`.
+
+    Example:
+        >>> create_geojson(buoys, user_args, arctic=True)
+        # Creates 'arctic_buoy_dart_active.geojson' in the specified
+          output folder.
+    """
+    
     import os
     import geojson
     import geojson_rewind
@@ -498,6 +734,45 @@ def create_geojson(buoys, user_args, arctic):
 
 
 def main():
+    """
+    Main execution function for processing buoy data and generating
+    output files.
+
+    Workflow:
+    1. Parses command-line arguments provided by the user.
+    2. Downloads buoy CSV data from ERDDAP using helper utilities.
+    3. Loads acronym mappings used to decode buoy metadata.
+    4. Processes data separately for both Arctic and Antarctic regions:
+        - Filters the DataFrame by hemisphere.
+        - Computes drift and daily statistics to build `.dart` files.
+        - Generates GeoJSON files with buoy metadata and location.
+    5. Writes output files to the directory specified in `user_args`.
+
+    Args:
+        None
+
+    Returns:
+        None
+
+    Side Effects:
+        - Downloads data from ERDDAP and saves output files:
+            - Dart files: `<output_dir>/dart/*.dart`
+            - GeoJSON files: 
+                - `arctic_buoy_dart_active.geojson`
+                - `antarctic_buoy_dart_active.geojson`
+        - Prints a final "done" message when complete.
+
+    Dependencies:
+        - Relies on functions and utilities from the `helper` module:
+            - `load_ERDDAP_buoy_CSV`
+            - `fetch_iabp_acronyms`
+        - Also depends on local functions:
+            - `read_arguments`
+            - `subset_csv`
+            - `build_dart`
+            - `create_geojson`
+    """
+    
     import helper
     
     # parse user arguments

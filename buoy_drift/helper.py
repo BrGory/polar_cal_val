@@ -37,14 +37,50 @@ Copyright notice
 """
 from typing import Tuple
 
+
 def fetch_iabp_acronyms(url="https://iabp.apl.uw.edu/Acronyms.html"):
     """
-    Fetch and parse acronyms from the IABP Acronyms webpage.
+    Fetch and parse buoy-related acronyms from the IABP
+    (International Arctic Buoy Program) website.
 
-    Parameters:
-        url (str): URL of the IABP Acronyms webpage.
+    This function retrieves the HTML content from the provided URL,
+    extracts all acronym tables on the page, and returns the acronyms
+    organized by category.
+
+    Args:
+        url (str, optional): URL of the IABP Acronyms page.
+            Defaults to "https://iabp.apl.uw.edu/Acronyms.html".
+
     Returns:
-        acronym_data (dict): Acronym categories and their full name.
+        dict: Dictionary where each key is a category name (e.g., 
+        "Buoy Owner Acronyms", "Buoy Type Acronyms") and the value is 
+        another dictionary mapping acronyms to their full meanings.
+        Example:
+        {
+            "Buoy Owner Acronyms": {
+                "NOAA": "National Oceanic and Atmospheric Administration",
+                "JMA": "Japan Meteorological Agency",
+                ...
+            },
+            "Buoy Type Acronyms": {
+                "SVP": "Surface Velocity Program Drifter",
+                ...
+            },
+            ...
+        }
+
+    Raises:
+        Exception: If the HTTP request to the URL fails.
+        ValueError: If a category name is not found in a table.
+
+    Dependencies:
+        - `requests` for downloading HTML content.
+        - `bs4` (BeautifulSoup) for parsing the HTML structure.
+
+    Example:
+        >>> acronyms = fetch_iabp_acronyms()
+        >>> acronyms["Buoy Type Acronyms"]["SVP"]
+        'Surface Velocity Program Drifter'
     """
     
     import requests
@@ -137,9 +173,44 @@ def compute_bearing(
 
 def download_erddap_buoy_csv(user_args):
     """
-    To download CSV file within date range of `start_date` to current date
-    Parameters:
-        user_args (dict): Dictionary containing script arguments
+    Download buoy data CSV from NOAA ERDDAP within the specified date range.
+
+    This function constructs a URL based on `start_date` and `end_date`
+    from the `user_args` dictionary, and downloads a CSV file from the
+    NOAA PolarWatch ERDDAP server (`iabpv2_buoys` dataset). If a local file
+    matching the date range already exists, the function skips downloading.
+
+    Args:
+        user_args (dict): Dictionary containing script configuration
+        parameters.
+            Expected keys:
+                - 'start_date' (str): Start date in 'YYYYMMDD' format.
+                - 'end_date' (str): End date in 'YYYYMMDD' format.
+                - 'infile_rootname' (str): Root name for the output CSV file.
+                - 'work_path' (str): Directory where the file will be saved.
+
+    Returns:
+        None
+
+    Side Effects:
+        - Writes a CSV file to disk with name format:
+          `<infile_rootname>_<start_date>_<end_date>.csv`
+        - Prints status messages and a download progress bar.
+        - Raises an error if the file could not be downloaded.
+
+    Raises:
+        ValueError: If the HTTP request fails or returns a non-200 status code.
+        requests.RequestException: If there is a problem with the request.
+
+    Example:
+        >>> user_args = {
+                'start_date': '20250101',
+                'end_date': '20250115',
+                'infile_rootname': 'ERDDAP_IABP',
+                'work_path': './data'
+            }
+        >>> download_erddap_buoy_csv(user_args)
+        # Downloads file to ./data/ERDDAP_IABP_2025-01-01_2025-01-15.csv
     """
     
     import requests
@@ -213,12 +284,50 @@ def download_erddap_buoy_csv(user_args):
         
 def load_ERDDAP_buoy_CSV(user_args):
     """
-    Load local and/or downloaded CSV file within date range of `start_date` to
-    current date.
-    Parameters:
-        user_args (dict): Dictionary containing script arguments
+    Load buoy observation data from a local or newly downloaded CSV file
+    for a given date range.
+
+    This function ensures the date range is valid, downloads the ERDDAP
+    buoy dataset if needed, and loads it into a pandas DataFrame. It expects
+    data to be available from 2011 onwards.
+
+    Args:
+        user_args (dict): Dictionary containing script arguments with keys:
+            - 'start_date' (str): Start date in 'YYYYMMDD' format.
+            - 'end_date' (str): End date in 'YYYYMMDD' format.
+            - 'infile_rootname' (str): Root name for the downloaded file.
+            - 'work_path' (str): Path to the local directory where the
+              CSV is stored.
+
     Returns:
-        df (DataFrame): Data frame of all buoy observations from ERDDAP
+        pandas.DataFrame: DataFrame containing buoy observations from the
+        specified date range.
+        Includes the following columns:
+            - time
+            - latitude
+            - longitude
+            - surface_temp
+            - air_temp
+            - bp (atmospheric pressure)
+            - buoy_id
+            - buoy_type
+            - buoy_owner
+            - logistics
+            - hour
+            - day_of_year
+
+    Raises:
+        ValueError: If the start date is earlier than 2011 or
+                    after the end date.
+
+    Side Effects:
+        - Triggers a call to `download_erddap_buoy_csv()` to download data if
+          the file is not found locally.
+        - Prints status messages to the console during loading.
+
+    Example:
+        >>> df = load_ERDDAP_buoy_CSV(user_args)
+        >>> df.head()
     """
 
     import os
@@ -265,16 +374,52 @@ def load_ERDDAP_buoy_CSV(user_args):
 
 
 def extract_daily_positions(df):
-    """ 
-    To extract coordinates (lon, lat) of a given buoy at the closest time
-    DOY.000 and save to new file with daily fields.
-    Parameters:
-        df (DataFrame): Data frame with dates, longitudes and latitudes
+    """
+    Extract daily position summaries for a single buoy from its full
+    observation records.
+
+    This function:
+    - Groups the DataFrame by calendar day (based on `formatted_date`).
+    - Extracts the first and last latitude/longitude and time entries
+      for each day.
+    - Computes the duration between the first and last observation of each day.
+    - Flags days as valid if the observation span exceeds 20 hours.
+
+    Args:
+        df (pandas.DataFrame): DataFrame containing at least the following
+           columns:
+            - 'formatted_date' (datetime or str): Date of observation.
+            - 'formatted_time' (time): Time of observation.
+            - 'latitude' (float): Latitude values.
+            - 'longitude' (float): Longitude values.
+            - 'day_of_year' (int): Used to filter out invalid records
+              (must be > 0).
+
     Returns:
-        date_range (DataFrame): Observation dates
-        lat_daily (DataFrame): Observation latitude positions
-        lon_daily (DataFrame): Observation longitude positions
-        hour_daily (DataFrame): Observation hours
+        tuple:
+            - date_range (numpy.ndarray): Array of unique dates
+              (as datetime objects).
+            - lat_daily (pandas.DataFrame): DataFrame with `first` and `last`
+              latitude values per day.
+            - lon_daily (pandas.DataFrame): DataFrame with `first` and `last`
+              longitude values per day.
+            - hour_daily (pandas.DataFrame): DataFrame with:
+                - `duration`: Time delta between first and last observation
+                  of the day.
+                - `valid`: Boolean indicating if duration exceeds 20 hours.
+
+    Notes:
+        - Only includes rows where `day_of_year > 0`.
+        - Assumes input data corresponds to a single buoy.
+        - Time comparison is done using 24-hour clock;
+          durations over midnight are not supported.
+
+    Example:
+        >>> extract_daily_positions(buoy_df)
+        (array([datetime.date(2025, 1, 1), ...]),
+         lat_daily_df,
+         lon_daily_df,
+         hour_daily_df)
     """
     
     import pandas as pd
@@ -320,22 +465,41 @@ def extract_daily_positions(df):
 
 def calculate_drift_daily(lat_daily, lon_daily):
     """
-    To calculate the daily drift
-    (distance between first and last record of a given day).
- Parameters:
-        lat_daily (DataFrame): DataFrame with columns 'first' and 'last' 
-                               for daily latitude values.
-        lon_daily (DataFrame): DataFrame with columns 'first' and 'last'
-                               for daily longitude values.
+    Compute daily drift metrics between the first and last recorded positions.
+
+    This function calculates:
+    - Cartesian displacements (dx, dy) in longitude and latitude.
+    - Forward azimuth (bearing from start to end point).
+    - Great-circle distances between the first and last positions of each day.
+
+    Args:
+        lat_daily (pandas.DataFrame): DataFrame with two columns:
+            - 'first': Starting latitude for each day.
+            - 'last': Ending latitude for each day.
+        lon_daily (pandas.DataFrame): DataFrame with two columns:
+            - 'first': Starting longitude for each day.
+            - 'last': Ending longitude for each day.
+
     Returns:
-        x_first (ndarray): Array of first recorded longitudes for each day.
-        y_first (ndarray): Array of first recorded latitudes for each day.
-        dx (ndarray): Daily change in longitude (x-direction) [last - first].
-        dy (ndarray): Daily change in latitude (y-direction) [last - first].
-        fwd_azimuth (ndarray): Array of forward azimuths
-                               (degrees from true north, clockwise).
-        total_distance (ndarray): Great-circle distances between first and 
-                                  last positions per day (in meters).
+        tuple:
+            - x_first (np.ndarray): First recorded longitudes per day.
+            - y_first (np.ndarray): First recorded latitudes per day.
+            - dx (np.ndarray): Daily change in longitude (last - first).
+            - dy (np.ndarray): Daily change in latitude (last - first).
+            - fwd_azimuth (np.ndarray): Forward azimuth in degrees from
+              true north.
+            - total_distance (np.ndarray): Great-circle distances in meters.
+
+    Notes:
+        - NaN values in coordinates are replaced with 0.0 using
+          `np.nan_to_num`.
+        - Uses the `compute_bearing` function for spherical distance and
+          azimuth calculations.
+        - Assumes daily data with consistent 'first' and 'last' structure in
+          both input DataFrames.
+
+    Example:
+        >>> x, y, dx, dy, azimuth, dist = calculate_drift_daily(lat_df, lon_df)
     """
 
     import numpy as np
@@ -373,6 +537,35 @@ def calculate_drift_daily(lat_daily, lon_daily):
 
 
 def get_avg(df, col):
+    """
+    Compute the daily average of a specified column in a DataFrame.
+
+    This function groups data by the `formatted_date` column and computes the
+    mean of the given column for each date. It preserves the original ordering
+    and count of dates, returning `NaN` for days with no valid data.
+
+    Args:
+        df (pandas.DataFrame): Input DataFrame containing a `formatted_date`
+           column and the target numeric column specified by `col`.
+        col (str): The name of the column for which to compute daily averages.
+
+    Returns:
+        numpy.ndarray: A 1D array of daily average values corresponding to each 
+        unique date in `df['formatted_date']`. If all values in the column are 
+        `NaN`, the array will contain `NaN` values of the same length as the 
+        number of unique dates.
+
+    Notes:
+        - Rows with `NaN` in the target column are excluded from averaging.
+        - The output array maintains alignment with the original set of
+          unique dates (in order of appearance), even if some dates have
+          no valid data.
+
+    Example:
+        >>> get_avg(df, 'air_temp')
+        array([272.5, 271.3, nan, 270.8])
+    """    
+    
     import numpy as np
     
     unique_dates = df['formatted_date'].unique()
@@ -387,7 +580,8 @@ def get_avg(df, col):
     # Otherwise compute the mean per day
     daily_avg = df_clean.groupby('formatted_date')[col].mean()
     
-    # Reindex to ensure all original dates are preserved, even if missing from df_clean
+    # Reindex to ensure all original dates are preserved,
+    # even if missing from df_clean
     daily_avg = daily_avg.reindex(unique_dates)
     
     return daily_avg.values
