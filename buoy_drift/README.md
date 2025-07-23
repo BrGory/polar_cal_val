@@ -15,7 +15,7 @@ This file contains utility functions for:
 - **Downloading and loading buoy data** from ERDDAP servers.
 - **Extracting daily buoy positions and calculating drift distance.**
 
-### 2. `polar_calval_buoy_drift.py`
+### 2. `buoy_drift.py`
 This file is responsible for:
 - Parsing user arguments and setting configurations.
 - Cleaning CSV files to retain Arctic-specific buoy data only.
@@ -31,7 +31,7 @@ This file is responsible for:
 ## Usage
 The program can be executed via the command line with the following syntax:
 ```
-python polar_calval_buoy_drift.py -v -s <Start Date> -p <Precision>
+python buoy_drift.py -v -s <Start Date> -p <Precision>
 ```
 ### Options:
 - `-s` / `--start_date`: Start date of buoy data download (Format: YYYYMMDD).

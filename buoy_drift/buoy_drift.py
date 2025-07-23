@@ -352,9 +352,10 @@ def build_dart(df, user_args, iabp_acronyms, arctic):
             user_args['work_path'], 'dart', buoy_data['file_name']
             )
         header = (
-            "#YYYY\tMM\tDD\thh\tmm\tss\tDistance\tBearing\t"
-            "Air Temperature\tSurface Temperature\tAtmospheric Pressure\n"
-            "#year\tmo\tdy\thr\tmn\ts\tkm\tdeg\tC\tC\tmb\t\n"
+            "#YYYY\tMM\tDD\thh\tmm\tss\tLongitude\tLatitude\t"
+            "Distance\tBearing\tAir_Temperature\tSurface_Temperature\t"
+            "Atmospheric_Pressure\n"
+            "#year\tmo\tdy\thr\tmn\ts\tWGS84\tWGS84\tkm\tdeg\tC\tC\tmb\t\n"
         )
         with open(output_file_path, 'w') as file:
             file.write(header)
@@ -363,6 +364,8 @@ def build_dart(df, user_args, iabp_acronyms, arctic):
                 year = str(row['date'].year)
                 month = f"{row['date'].month:02}"
                 day = f"{row['date'].day:02}"
+                lon = f"{row['lon']}"
+                lat = f"{row['lat']}"
                 distance = f"{row['total_distance_km']}"
                 bearing = f"{row['bearing']}"
                 avg_air_temp = f"{row['avg_air_temp']}"
@@ -370,6 +373,7 @@ def build_dart(df, user_args, iabp_acronyms, arctic):
                 avg_bp = f"{row['avg_bp']}"
                 data_line = (
                     f"{year}\t{month}\t{day}\t00\t00\t00\t"
+                    f"{lon}\t{lat}\t"
                     f"{distance}\t{bearing}\t{avg_air_temp}\t"
                     f"{avg_surface_temp}\t{avg_bp}\n"
                     )
