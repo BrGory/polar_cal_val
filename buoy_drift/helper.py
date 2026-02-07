@@ -35,6 +35,42 @@ Copyright notice
  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  DEALINGS IN THE SOFTWARE.
 """
+
+import os
+import sys
+from pathlib import Path
+
+# Derive paths from the active env rather than hard-coding
+env_prefix = Path(sys.prefix)
+proj_dir = env_prefix / "Library" / "share" / "proj"
+bin_dir = env_prefix / "Library" / "bin"
+
+print("Using PROJ dir:", proj_dir)
+print("Using bin dir:", bin_dir)
+
+os.add_dll_directory(str(bin_dir))
+
+# Set both env vars for PROJ
+os.environ["PROJ_DATA"] = str(proj_dir)
+os.environ["PROJ_LIB"] = str(proj_dir)   # backward compatibility
+
+# The project database for pyproj is properly set by the code above
+# Okay to ignore this warning and only this warning
+import warnings
+warnings.filterwarnings(
+    "ignore",
+    category=UserWarning,
+    module="pyproj",
+    message="pyproj unable to set database path"
+)
+
+
+# from pyproj.datadir import set_data_dir, get_data_dir
+from pyproj.datadir import set_data_dir
+
+# Tell pyproj explicitly where proj.db lives
+set_data_dir(str(proj_dir))  
+    
 from typing import Tuple
 
 
@@ -354,8 +390,7 @@ def load_ERDDAP_buoy_CSV(user_args):
     
     
     # Create data frame for dates from start_date to end_date
-    print('Loading CSV data...')
-    print(start_date)
+    print(f'Loading CSV data from {start_date} to {end_date}...')
     local_file_path = os.path.join(
         user_args['work_path'],
         f"{user_args['infile_rootname']}_{start_date}_{end_date}.csv"

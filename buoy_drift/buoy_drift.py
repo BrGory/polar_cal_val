@@ -105,6 +105,7 @@ def read_arguments():
     import argparse
     import sys
     import os
+    from pathlib import Path
     from datetime import datetime
     
     # Get today's date in the required format
@@ -138,7 +139,7 @@ def read_arguments():
     
     parser.add_argument(
         '-o', '--output',
-        default=r'D:\NOAA\Analysis\USNIC products\IABP\buoys',
+        default='output',
         action='store',
         help='Dir on file sys to store downloaded CSV file and'
              'create output files',        
@@ -217,15 +218,16 @@ def read_arguments():
 
     
     # Ensure paths are available
-    os.makedirs(args.output, exist_ok=True)
-    os.makedirs(os.path.join(args.output, 'dart'), exist_ok=True)
+    output_dir = Path(args.output).resolve()
+    os.makedirs(output_dir, exist_ok=True)
+    os.makedirs(os.path.join(output_dir, 'dart'), exist_ok=True)
     
     
     user_args = {
         'start_date': start_date,
         'end_date': end_date,
         'infile_rootname': args.infile_rootname,
-        'work_path': os.path.normpath(os.path.join(args.output)),
+        'work_path': str(output_dir),
         'precision': args.precision,
         'decimal_digits_consistent': args.decimal_digits_consistent,
         'compact': args.compact,
@@ -245,7 +247,7 @@ def read_arguments():
         " precision (-p):                        "
         f"{user_args['precision']}\n\n"
         " Boolean args below. If key is provided then 'True', else 'False'.\n"
-        " decimal digits consistent (-d) output:"
+        " decimal digits consistent (-d) output: "
         f"{user_args['decimal_digits_consistent']}\n"
         " compact (-c) output:                   "
         f"{user_args['compact']}\n"
@@ -435,6 +437,7 @@ def build_dart(df, user_args, iabp_acronyms, arctic):
         
     for buoy_id in tqdm(
             buoy_ids, desc=f'Creating dart for each {region} buoy'):
+            
         buoy_data = {}
         
         # Create data frame for one buoy
@@ -508,10 +511,16 @@ def build_dart(df, user_args, iabp_acronyms, arctic):
         
         buoy_data['latitude'] = df_daily_data['lat'].iloc[-1]
         buoy_data['longitude'] = df_daily_data['lon'].iloc[-1]
+        buoy_data['start_date'] = (
+            df_daily_data['date'].iloc[0].date().isoformat()
+        )
+        buoy_data['end_date'] = (
+            df_daily_data['date'].iloc[-1].date().isoformat()
+        )
         
         output_file_path = os.path.join(
             user_args['work_path'], 'dart', buoy_data['file_name']
-            )
+        )
         header = (
             "#YYYY\tMM\tDD\thh\tmm\tss\tLongitude\tLatitude\t"
             "Distance\tBearing\tAir_Temperature\tSurface_Temperature\t"
@@ -651,6 +660,8 @@ def create_geojson(buoys, user_args, arctic):
         longitude = buoy['longitude']
         file_name = buoy['file_name']
         station_info = buoy['station_info']
+        start_date = buoy['start_date']
+        end_date = buoy['end_date']
         
         # geojson parts
         geometry = {
@@ -693,7 +704,9 @@ def create_geojson(buoys, user_args, arctic):
                 "Latitude": str(latitude),
                 "Longitude": str(longitude),
                 "Timeseries": file_name,
-                "StationInfo": station_info        
+                "StationInfo": station_info,
+                "StartDate": start_date,
+                "EndDate": end_date
             }
             
         feature = {
@@ -777,6 +790,7 @@ def main():
     
     # parse user arguments
     user_args = read_arguments()
+    
     
     # download buoy data from ERDDAP
     df = helper.load_ERDDAP_buoy_CSV(user_args)
